@@ -26,6 +26,32 @@ void posrednik2(int signal){
 	return;
 }
 
+void dziecko1(){
+	//if(pobierzCiag==1){
+	int i = 0;	
+	char *znaki = malloc(sizeof(char));
+	read(0, &znaki[i], 1);
+	while(znaki[i]!='\n'){
+		i++;
+		znaki = realloc(znaki, sizeof(char)*(i+1));
+		read(0, &znaki[i], 1);
+	}
+	des = open( "/tmp/plikfifo", O_WRONLY);
+	i = 0;
+	while(znaki[i]!='\n'){
+		write(des, &znaki[i], 1);
+		i++;
+	}
+	znaki[i+1]='\0';
+    write(des, &znaki[i+1], 1);
+	//printf("zapisalem\n");
+
+	//write(des, &val, 1);
+	//kill(rodzic,10);						
+	close(des);
+	//pobierzCiag=false;
+//}	
+}
 
 void dziecko2(){
 	int des;
@@ -33,20 +59,26 @@ void dziecko2(){
 	//des2 = open( "/tmp/plik", O_WRONLY);		
 	//sleep(4);
 	des = open( "/tmp/plikfifo", O_RDONLY);
-	int size;
-	read(des, &size, 1);
-	//size++;
-	char *znak = malloc(size*sizeof(char));
-	read(des, znak,size);
+	int i = 0;
+	char znak;
+	read(des, &znak, 1);
+	printf("%c", znak);
+	while(znak!='\0'){
+		read(des, &znak, 1);
+		printf("%c", znak);
+	}
+	//printf("\n");
+	fflush(stdout);
+	printf("\n");
 	//printf("z dziecka2: %s\n",znak);
 	close(deskryptory[0]);
-	write(deskryptory[1], &size,1);
-	printf("%s\n", znak);
-	write(deskryptory[1], znak,size);
+//	write(deskryptory[1], &size,1);
+	//printf("%s\n", znak);
+	//write(deskryptory[1], znak,size);
 	//close(deskryptory[1]);
 	//write(des2,&znak, 1);
 	//close(des2);
-	close(des);
+	//close(des);
 }
 
 void dziecko3(){
@@ -76,7 +108,6 @@ int main(){
 		if((d2=fork())){
 			if((d3=fork())){
 				//rodzic
-//
 				while(1);
 			}
 			else{
@@ -104,23 +135,7 @@ int main(){
 		//1dziecko
 			//signal(10, readSignal);
 			while(1){
-				//if(pobierzCiag==1){
-					des = open( "/tmp/plikfifo", O_WRONLY);
-					int i = 0;	
-					char *znaki = malloc(sizeof(char));
-					read(0, &znaki[i], 1);
-					while(znaki[i]!='\n'){
-						i++;
-						znaki = realloc(znaki, sizeof(char)*(i+1));
-						read(0, &znaki[i], 1);
-					}
-					int val = i+1;
-					write(des, &val,1);
-					write(des, znaki,i+1);
-					//kill(rodzic,10);						
-					close(des);
-					//pobierzCiag=false;
-				//}	
+				dziecko1();
 			}
 
 		while(1);
