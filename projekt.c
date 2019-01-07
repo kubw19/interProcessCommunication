@@ -11,7 +11,7 @@
 
 pid_t d1, d2, d3, rodzic;
 int deskryptory[2];
-bool execDziecko1 = true, execDziecko2 = true;
+bool execute = true;
 int semid;
 int logs;
 
@@ -25,48 +25,43 @@ void posrednik2(int signal){
 	return;
 }
 
-void uruchomD1(int signal){
-	execDziecko1=true;
+void uruchom(int signal){
+	if(getpid()==d3){
+		semctl(semid, 1, SETVAL, 0);
+		return;
+	}
+	execute=true;
 }
 
-void zatrzymajD1(int signal){
-	execDziecko1=false;
+void zatrzymaj(int signal){
+	if(getpid()==d3){
+		semctl(semid, 0, SETVAL, 0);
+		return;
+	}
+	execute=false;
 }
 
-void uruchomD2(int signal){
-	execDziecko2=true;
+int checkInterrupt(){
+	if(getpid()==d3 && semctl(semid, 1, GETVAL)==0){
+		return 1;		
+	}
+	else if(getpid()==d3 && semctl(semid, 1, GETVAL)==1){
+		return 0;
+	}
+	if(execute==false)return 1;
+	return 0;
 }
 
-void zatrzymajD2(int signal){
-	execDziecko2=false;
+void wstrzymajWszystkie(int signal){
+
 }
 
-void uruchomD3(int signal){
-	semctl(semid, 1, SETVAL, 1);
-}
+void uruchomWszystkie(int signal){
 
-void zatrzymajD3(int signal){
-	semctl(semid, 0, SETVAL, 0);
 }
-
-bool checkInterruptDziecko1(){
-	if(execDziecko1==false)return true;
-	return false;
-}
-
-bool checkInterruptDziecko2(){
-	if(execDziecko2==false)return true;
-	return false;
-}
-
-bool checkInterruptDziecko3(){
-	if(semctl(semid, 1, GETVAL)==0)return true;
-	return false;
-}
-
 
 void dziecko1(){
-	if(checkInterruptDziecko1()==false){
+	if(checkInterrupt()==0){
 		printf("Dziecko1\n");
 		printf("In:  ");
 		fflush(stdout);
@@ -84,13 +79,13 @@ void dziecko1(){
 		write(des, &i, sizeof(int));
 	    write(des, znaki, i*sizeof(char));			
 		close(des);
-		execDziecko1=false;
+		zatrzymaj(0);
 	}
 	else write(logs, "Dziecko 1 wstrzymane\n", 21);
 }
 
 void dziecko2(){
-	if(checkInterruptDziecko2()==false){
+	if(checkInterrupt()==0){
 		int des = open( "/tmp/plikfifo", O_RDONLY);
 		printf("Dziecko2\n");
 		int size;
@@ -105,14 +100,14 @@ void dziecko2(){
 		while(semctl(semid, 0, GETVAL)==1){ // czekanie na trzecie dziecko
 			sleep(1);
 		}
-		kill(d1, 10);// jak się trzecie wykona, to uruchamiamy pierwsze
+		kill(d1, 8);// jak się trzecie wykona, to uruchamiamy pierwsze
 		semctl(semid, 0, SETVAL, 1);
 	}
 	else write(logs, "Dziecko 2 wstrzymane\n", 21);
 }
 
 void dziecko3(){
-	if(checkInterruptDziecko3()==false){
+	if(checkInterrupt()==0){
 		close(deskryptory[1]);
 		int size;
 		read(deskryptory[0], &size, sizeof(int));
@@ -177,6 +172,7 @@ int main(){
 	}
 	else{
 		//1dziecko
+			signal(8, uruchom);
 			signal(10, wstrzymajWszystkie);
 			signal(12, uruchomWszystkie);
 			signal(15, sendKillAllRequest);
