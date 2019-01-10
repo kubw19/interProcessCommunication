@@ -38,6 +38,7 @@ void zwolnijZasoby(){
 	semctl(semid, 1, IPC_RMID, ctl);
 	semctl(semid, 2, IPC_RMID, ctl);
 	semctl(semid, 3, IPC_RMID, ctl);
+	remove("/tmp/plikfifo");
 	kill(rodzic, 9);
 }
 
@@ -48,7 +49,7 @@ int semLock(int semid, int semIndex){
 	opr.sem_flg = 0;
 
 	if(semop(semid, &opr, 1)==1){
-		warn("Blad blokowania semafora!");
+		warn("Blad blokowania semafora!\n");
 		return 0;
 	}
 	return 1;
@@ -61,21 +62,22 @@ int semUnlock(int semid, int semIndex){
 	opr.sem_flg = 0;
 
 	if(semop(semid, &opr, 1)==1){
-		warn("Blad odblokowania semafora!");
+		warn("Blad odblokowania semafora!\n");
 		return 0;	
 	}
 	return 1;
 }
 
 
-void * kontrolaZatrzymaniaD3(void *arg){
+void * kontrolaZatrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora zamknięcia z D2
 	semLock(semid, 2);
+	printf("\nKoniec wypisywania\n");
+	printf("Zatrzymuje d3\n");
 	zwolnijZasoby();
-	printf("rodzic: %d...", rodzic);
 	exit(0);
 }
 
-void * kontrolaZatrzymaniaD2(void *arg){
+void * kontrolaZatrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora zakmnięcia z D3
 	semLock(semid, 3);
 	kill(d2, 2);
 }
@@ -99,7 +101,11 @@ void zatrzymaj(int signal){
 }
 
 void powrotDoD1(int signal){
+	printf("(6)");
+	fflush(stdout);
 	execute = true;
+	//printf("(7 - %i)", execute);
+	fflush(stdout);
 }
 
 int checkInterrupt(){
@@ -111,23 +117,37 @@ int checkInterrupt(){
 
 
 void dziecko1(){
-	if(checkInterrupt()==0){
+	//if(execute==true)printf("(exe = %i)", execute);
+	if(execute==true){
+		execute=false;
 		char znak;
-		if(read(0, &znak, 1)==1){
+		printf("(0)");
+		fflush(stdout);
+		int rd;
+		if(read(0, &znak, 1) == 1){
+			printf("(1 :pobralem)");
+			fflush(stdout);
 			int des = open( "/tmp/plikfifo", O_WRONLY);
 			write(des, &znak, 1);
 			close(des);
-			execute=false;
+
 		}
-		else kill(rodzic, 2);
+		else 
+		{
+			printf("\nKoniec wypisywania\n");			
+			kill(rodzic, 2);
+			//while(1);
+		}
 	}
-	else write(logs, "Dziecko 1 wstrzymane\n", 21);
+	//else write(logs, "Dziecko 1 wstrzymane\n", 21);
 }
 
 void dziecko2(){
 	if(checkInterrupt()==0){
 
 		int des = open( "/tmp/plikfifo", O_RDONLY);
+		printf("(2)");
+		fflush(stdout);
 		char znak;
 		read(des, &znak, 1);
 		close(des);
@@ -135,6 +155,8 @@ void dziecko2(){
 		write(deskryptory[1], &znak,1);
 		semUnlock(semid, 0);
 		semLock(semid, 1);
+		printf("(5 - d1: %d)", d1);
+		fflush(stdout);
 		kill(d1, 12);// jak się trzecie wykona, to uruchamiamy pierwsze
 
 
@@ -145,15 +167,18 @@ void dziecko2(){
 void dziecko3(){
 	semLock(semid, 0);
 	close(deskryptory[1]);
-	char znak;
+	unsigned char znak;
 	read(deskryptory[0], &znak, 1);				
-	printf("%#X ", (int)znak);
+	printf("(3)");
+	printf("%c ", znak);
 	fflush(stdout);
-	sleep(1);
+	//sleep(1);
+	printf("(4)");
 	semUnlock(semid, 1);
+	fflush(stdout);
 }
 
-void zamknijWszystkie(int signal){
+void zamknijWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał zamknięcia
 	if(getpid()==d1){
 		printf("Zatrzymuje d1\n");
 		kill(rodzic, 10);
@@ -226,11 +251,11 @@ int main(){
 				d3 = getpid();
 				signal(2, zamknijWszystkie);
 				pthread_t p_thread;
-				pthread_create(&p_thread, NULL, kontrolaZatrzymaniaD3, NULL);
+				//pthread_create(&p_thread, NULL, kontrolaZatrzymaniaD3, NULL);
 				while(1){
 					dziecko3();
 				}
-				pthread_join(p_thread, NULL);
+				//pthread_join(p_thread, NULL);
 
 			}
 		}
