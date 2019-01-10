@@ -5,7 +5,16 @@ zewnętrzne:
 15 - sygnał wstrzymania
 20 - sygnał kontynuowania
 
-wewnętrzne między P1 i P2
-12 uruchomienie
-10 zatrzymanie
-15 wstrzymanie
+Sygnaly dla D2
+20 przekazanie sygnalu uruchomienia z D2 do D1
+15 przekazanie sygnału wstrzymania z D2 do D1
+2 przekazanie sygnału zamknięcia z D2 do D1
+17 kontynuwanie działania i przekazanie rozkazu do d3
+12 wstrzymanie działania i przekazanie rozkazu do d3
+10 przekazanie rozkazu zamknięcia do d3 i zamknięcie siebie
+
+Sygnały dla d1
+20 uruchomienie siebie i wydanie rozkazu uruchomienia dla D2
+15 wstrzymanie siebie i wydanie rozkazu wstrzymania dla D2
+2 wydanie rozkazu zamknięcia do D2 i zamkniecie siebie
+
