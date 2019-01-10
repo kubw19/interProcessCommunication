@@ -2,9 +2,10 @@ sygnały
 
 zewnętrzne: 
 2 - sygnał zamknięcia
-17 - sygnał wstrzymania
-18 - sygnał kontynuowania
+15 - sygnał wstrzymania
+20 - sygnał kontynuowania
 
 wewnętrzne między P1 i P2
 12 uruchomienie
 10 zatrzymanie
+15 wstrzymanie

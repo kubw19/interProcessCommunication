@@ -29,6 +29,7 @@ union semun ctl;
 pid_t d1, d2, d3, rodzic;
 int deskryptory[2];
 bool execute = true;
+bool executeNoHold = true;
 int semid;
 int logs;
 int semid;
@@ -38,6 +39,10 @@ void zwolnijZasoby(){
 	semctl(semid, 1, IPC_RMID, ctl);
 	semctl(semid, 2, IPC_RMID, ctl);
 	semctl(semid, 3, IPC_RMID, ctl);
+	semctl(semid, 4, IPC_RMID, ctl);
+	semctl(semid, 5, IPC_RMID, ctl);
+	semctl(semid, 6, IPC_RMID, ctl);
+	semctl(semid, 7, IPC_RMID, ctl);
 	remove("/tmp/plikfifo");
 	kill(rodzic, 9);
 }
@@ -76,10 +81,41 @@ void * kontrolaZatrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie 
 	exit(0);
 }
 
+void * kontrolaWstrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora wstrzymania z D2
+	while(1){
+		semLock(semid, 4);
+		printf("Wstrzymuje d3\n");
+		execute = false;
+	}
+}
+
+void * kontrolaKontynuowaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora wstrzymania z D2
+	while(1){
+		semLock(semid, 6);
+		printf("Uruchamiam d3\n");
+		execute = true;
+	}
+}
+
 void * kontrolaZatrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora zakmnięcia z D3
 	semLock(semid, 3);
 	kill(d2, 2);
 }
+
+void * kontrolaWstrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora wstrzymania z D3
+	while(1){
+		semLock(semid, 5);
+		kill(d2, 15);
+	}	
+}
+
+void * kontrolaKontynuowaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora wstrzymania z D3
+	while(1){
+		semLock(semid, 7);
+		kill(d2, 20);
+	}	
+}
+
 
 
 void uruchom(int signal){
@@ -102,23 +138,17 @@ void zatrzymaj(int signal){
 void powrotDoD1(int signal){
 	//printf("(6)");
 	fflush(stdout);
-	execute = true;
+	executeNoHold = true;
 	//printf("(7 - %i)", execute);
 	fflush(stdout);
 }
-
-int checkInterrupt(){
-	if(execute==false)return 1;
-	return 0;
-}
-
 
 
 
 void dziecko1(){
 	//if(execute==true)printf("(exe = %i)", execute);
-	if(execute==true){
-		execute=false;
+	if(executeNoHold==true && execute){
+		executeNoHold=false;
 		char znak;
 	//	printf("(0)");
 		fflush(stdout);
@@ -141,7 +171,7 @@ void dziecko1(){
 }
 
 void dziecko2(){
-	if(checkInterrupt()==0){
+	if(execute){
 		char znak;
 		read(des, &znak, 1);
 		//printf("(2)");
@@ -153,24 +183,24 @@ void dziecko2(){
 		//printf("(5 - d1: %d)", d1);
 		fflush(stdout);
 		kill(d1, 12);// jak się trzecie wykona, to uruchamiamy pierwsze
-
-
 	}
 	else write(logs, "Dziecko 2 wstrzymane\n", 21);
 }
 
 void dziecko3(){
-	semLock(semid, 0);
-	close(deskryptory[1]);
-	unsigned char znak;
-	read(deskryptory[0], &znak, 1);				
-	//printf("(3)");
-	printf("%c ", znak);
-	fflush(stdout);
-	//sleep(1);
-	//printf("(4)");
-	semUnlock(semid, 1);
-	fflush(stdout);
+	if(execute){
+		semLock(semid, 0);
+		close(deskryptory[1]);
+		unsigned char znak;
+		read(deskryptory[0], &znak, 1);				
+		//printf("(3)");
+		printf("0x%02X ", znak);
+		fflush(stdout);
+		//sleep(1);
+		//printf("(4)");
+		semUnlock(semid, 1);
+		fflush(stdout);
+	}
 }
 
 void zamknijWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał zamknięcia
@@ -196,17 +226,67 @@ void zamknijWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał z
 	}
 }
 
-//SYGNAŁY ODBIERANE PRZEZ DZIECKO1
+void wstrzymajWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał zamknięcia
+	if(getpid()==d1){
+		if(execute==true){
+		printf("Wstrzymuje d1\n");
+		kill(rodzic, 15);
+		execute = false;
+		}
+		else {
+		}
+		}
+	else if(getpid()==d2){
+		printf("Wstrzymuje d2\n");
+		kill(d1, 15);
+		semUnlock(semid, 4);//wstrzymanie procesu 3
+		execute = false;
+	}
 
+	else if(getpid()==d3){
+		semUnlock(semid, 5);
+		printf("Wstrzymuje d3\n");
+		execute=false;
+	}
 
+	else if(getpid() == rodzic){
+		kill(d1, 2);
+	}
+}
 
-//koniec
+void kontynuujWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał zamknięcia
+	if(getpid()==d1){
+		if(execute==false){
+		printf("Uruchamiam d1\n");
+		kill(rodzic, 20);
+		execute = true;
+		}
+		else {
+		}
+		}
+	else if(getpid()==d2){
+		printf("Uruchamiam d2\n");
+		kill(d1, 20);
+		semUnlock(semid, 6);//uruchomienie procesu 3
+		execute = true;
+	}
 
-//SYGNAŁY ODBIERANE PRZEZ DZIECKO2
+	else if(getpid()==d3){
+		semUnlock(semid, 7);
+		printf("Uruchamiam d3\n");
+		execute=true;
+	}
+}
 
 void posrednikD1D2(int signal){
 	if(signal==10){
 		kill(d2, 2);
+	}
+	else if(signal==15){
+		kill(d2, 15);
+	}
+	else if(signal==20){
+		kill(d2, 20);
 	}
 }
 
@@ -215,7 +295,7 @@ void posrednikD1D2(int signal){
 
 int main(){
 	key_t semKey = ftok(".", 'A');
-	semid = semget(semKey, 4, IPC_CREAT | 0600);
+	semid = semget(semKey, 8, IPC_CREAT | 0600);
 	ctl.val = 1 ; //zezwolenie na zapis
 	semctl(semid, 0, SETVAL, ctl);
 
@@ -228,6 +308,18 @@ int main(){
 	ctl.val = 0 ; //semafor wysłania zatrzymania z D3 do D2
 	semctl(semid, 3, SETVAL, ctl);	
 
+	ctl.val = 0 ; //semafor wstrzymania z D2 do D3
+	semctl(semid, 4, SETVAL, ctl);	
+
+	ctl.val = 0 ; //semafor wstrzymania z D3 do D2
+	semctl(semid, 5, SETVAL, ctl);	
+
+	ctl.val = 0 ; 
+	semctl(semid, 6, SETVAL, ctl);	
+
+	ctl.val = 0 ; 
+	semctl(semid, 7, SETVAL, ctl);	
+
 	mknod("/tmp/plikfifo", S_IFIFO|0666, 0);
 	logs = open("log.txt",  O_RDWR | O_CREAT | O_TRUNC);
 	pipe(deskryptory);
@@ -239,18 +331,23 @@ int main(){
 				//rodzic
 				signal(2, zamknijWszystkie);
 				signal(10, posrednikD1D2);
+				signal(15, posrednikD1D2);
+				signal(20, posrednikD1D2);
 				while(1);
 			}
 			else{
 				//d3
 				d3 = getpid();
 				signal(2, zamknijWszystkie);
-				pthread_t p_thread;
-				pthread_create(&p_thread, NULL, kontrolaZatrzymaniaD3, NULL);
+				signal(15, wstrzymajWszystkie);
+				signal(20, kontynuujWszystkie);
+				pthread_t p_thread[3];
+				pthread_create(&p_thread[0], NULL, kontrolaZatrzymaniaD3, NULL);
+				pthread_create(&p_thread[1], NULL, kontrolaWstrzymaniaD3, NULL);
+				pthread_create(&p_thread[2], NULL, kontrolaKontynuowaniaD3, NULL);
 				while(1){
 					dziecko3();
 				}
-				//pthread_join(p_thread, NULL);
 
 			}
 		}
@@ -258,14 +355,17 @@ int main(){
 				//2 dziecko
 				des = open( "/tmp/plikfifo", O_RDONLY);
 				d2 = getpid();
-				pthread_t p_thread;
-				pthread_create(&p_thread, NULL, kontrolaZatrzymaniaD2, NULL);
+				pthread_t p_thread[3];
+				pthread_create(&p_thread[0], NULL, kontrolaZatrzymaniaD2, NULL);
+				pthread_create(&p_thread[1], NULL, kontrolaWstrzymaniaD2, NULL);
+				pthread_create(&p_thread[2], NULL, kontrolaKontynuowaniaD2, NULL);
 				signal(2, zamknijWszystkie);// Dziecko 2 otrzymuje sygnał zamknięcia i zamyka dziecko1 i dziecko 3
+				signal(15, wstrzymajWszystkie);
+				signal(20, kontynuujWszystkie);
 
 				while(1){
 					dziecko2();
 				};
-				pthread_join(p_thread, NULL);
 		}
 	}
 	else{
@@ -274,6 +374,8 @@ int main(){
 			des = open( "/tmp/plikfifo", O_WRONLY);
 			signal(12, powrotDoD1);
 			signal(2, zamknijWszystkie);
+			signal(15, wstrzymajWszystkie);
+			signal(20, kontynuujWszystkie);
 
 			while(1){
 				dziecko1();
