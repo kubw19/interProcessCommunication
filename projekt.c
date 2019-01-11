@@ -80,14 +80,14 @@ void * kontrolaZatrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie 
 	semLock(semid, 2);
 	printf("Zamykam D3\n");
 	zwolnijZasoby();
-	exit(0);
+    kill(getpid(), 9);
 }
 
 void * kontrolaWstrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora wstrzymania z D2
 	while(1){
 		semLock(semid, 4);
-		printf("Wstrzymuje D3\n");
 		execute = false;
+        printf("Wstrzymuje D3\n");
 	}
 }
 
@@ -166,7 +166,7 @@ void zamknijWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał z
 	if(getpid()==d1){
 		printf("Zamykam D1\n");
 		kill(rodzic, 10);
-		exit(0);
+		kill(getpid(), 9);
 	}
 	else if(getpid()==d2 && signal == 2){
 		kill(d1, 2);
@@ -174,7 +174,7 @@ void zamknijWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał z
 	else if(getpid()==d2 && signal == 10){
 		printf("Zamykam D2\n");
 		semUnlock(semid, 2);//przekazanie rozkazu zamknięcia do d3
-		exit(0);
+        kill(getpid(), 9);
 	}
 
 	else if(getpid()==d3){
