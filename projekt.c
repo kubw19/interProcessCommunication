@@ -35,8 +35,10 @@ int semid;
 int logs;
 int semid;
 int des;
+int stopD3 = false;
 bool odblokowal;
 void zwolnijZasoby(){
+	kill(rodzic, 9);
 	semctl(semid, 0, IPC_RMID, ctl);
 	semctl(semid, 1, IPC_RMID, ctl);
 	semctl(semid, 2, IPC_RMID, ctl);
@@ -46,7 +48,6 @@ void zwolnijZasoby(){
 	semctl(semid, 6, IPC_RMID, ctl);
 	semctl(semid, 7, IPC_RMID, ctl);
 	remove("/tmp/plikfifo");
-	kill(rodzic, 9);
 }
 
 int semLock(int semid, int semIndex){
@@ -78,6 +79,7 @@ int semUnlock(int semid, int semIndex){
 
 void * kontrolaZatrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora zamknięcia z D2
 	semLock(semid, 2);
+	stopD3 = true;
 	printf("Zamykam D3\n");
 	zwolnijZasoby();
     kill(getpid(), 9);
@@ -86,32 +88,36 @@ void * kontrolaZatrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie 
 void * kontrolaWstrzymaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora wstrzymania z D2
 	while(1){
 		semLock(semid, 4);
-		execute = false;
-        printf("Wstrzymuje D3\n");
-	}
+		if(stopD3==false){
+			execute = false;
+	        printf("Wstrzymuje D3\n");
+    }
+		}
 }
 
 void * kontrolaKontynuowaniaD3(void *arg){//oczekiwanie w wątku w D3 na otwarcie semafora wstrzymania z D2
 	while(1){
 		semLock(semid, 6);
-		printf("Kontynuuje D3\n");
+			if(stopD3==false){
+			printf("Kontynuuje D3\n");
 		execute = true;
+		}
 	}
 }
 
-void * kontrolaZatrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora zakmnięcia z D3
+void * kontrolaZatrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie semafora zakmnięcia z D3
 	semLock(semid, 3);
-	kill(d2, 2);
+	kill(d1, 2);
 }
 
-void * kontrolaWstrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora wstrzymania z D3
+void * kontrolaWstrzymaniaD2(void *arg){// oczekiwanie w D2 na otwarcie semafora wstrzymania z D3
 	while(1){
 		semLock(semid, 5);
 		kill(d1, 15);
 	}	
 }
 
-void * kontrolaKontynuowaniaD2(void *arg){// oczekiwanie w D2 na otwarcie zemafora wstrzymania z D3
+void * kontrolaKontynuowaniaD2(void *arg){// oczekiwanie w D2 na otwarcie semafora wstrzymania z D3
 	while(1){
 		semLock(semid, 7);
 		kill(d1, 20);
@@ -214,7 +220,7 @@ void wstrzymajWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał
 void kontynuujWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał zamknięcia
 	if(getpid()==d1){
 		if(execute==false){
-		kill(rodzic, 17);
+		kill(rodzic, 21);
 		execute = true;
 		printf("Kontynuuje D1\n");
 		}
@@ -225,7 +231,7 @@ void kontynuujWszystkie(int signal){//wykonanie gdy dany proces odbierze sygnał
 		kill(d1, 20);
 	}
 
-	else if(getpid()==d2 && signal == 17){
+	else if(getpid()==d2 && signal == 21){
 		execute = true;
 		printf("Kontynuuje D2\n");
 		semUnlock(semid, 6);//uruchomienie procesu 3
@@ -243,8 +249,8 @@ void posrednikD1D2(int signal){
 	else if(signal==12){
 		kill(d2, 12);
 	}
-	else if(signal==17){
-		kill(d2, 17);
+	else if(signal==21){
+		kill(d2, 21);
 	}
 }
 
@@ -294,7 +300,7 @@ int main(){
 				signal(2, zamknijWszystkie);
 				signal(10, posrednikD1D2);
 				signal(12, posrednikD1D2);
-				signal(17, posrednikD1D2);
+				signal(21, posrednikD1D2);
 				while(1);
 			}
 			else{
@@ -318,16 +324,17 @@ int main(){
 				//2 dziecko
 				des = open( "/tmp/plikfifo", O_RDONLY);
 				d2 = getpid();
-				pthread_t p_thread[3];
-				pthread_create(&p_thread[0], NULL, kontrolaZatrzymaniaD2, NULL);
-				pthread_create(&p_thread[1], NULL, kontrolaWstrzymaniaD2, NULL);
-				pthread_create(&p_thread[2], NULL, kontrolaKontynuowaniaD2, NULL);
+
 				signal(2, zamknijWszystkie);// Dziecko 2 otrzymuje sygnał zamknięcia i zamyka dziecko1 i dziecko 3
 				signal(15, wstrzymajWszystkie);
 				signal(20, kontynuujWszystkie);
 				signal(10, zamknijWszystkie);
 				signal(12, wstrzymajWszystkie);
-				signal(17, kontynuujWszystkie);
+				signal(21, kontynuujWszystkie);
+				pthread_t p_thread[3];
+				pthread_create(&p_thread[0], NULL, kontrolaZatrzymaniaD2, NULL);
+				pthread_create(&p_thread[1], NULL, kontrolaWstrzymaniaD2, NULL);
+				pthread_create(&p_thread[2], NULL, kontrolaKontynuowaniaD2, NULL);
 
 				while(1){
 					dziecko2();

@@ -9,7 +9,7 @@ Sygnaly dla D2
 20 przekazanie sygnalu uruchomienia z D2 do D1
 15 przekazanie sygnału wstrzymania z D2 do D1
 2 przekazanie sygnału zamknięcia z D2 do D1
-17 kontynuwanie działania i przekazanie rozkazu do d3
+21 kontynuwanie działania i przekazanie rozkazu do d3
 12 wstrzymanie działania i przekazanie rozkazu do d3
 10 przekazanie rozkazu zamknięcia do d3 i zamknięcie siebie
 
